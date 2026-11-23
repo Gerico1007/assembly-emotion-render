@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assembly-emotion-render"
+version = "0.1.0"
+description = "Acted speech for the G.Music Assembly: a tagged script in, a voiced wav out."
+readme = "README.md"
+# Chatterbox is tested on 3.11. The upper bound keeps it out of /opt/anaconda3 (3.13),
+# whose NumPy and SciPy the jamai watcher depends on.
+requires-python = ">=3.10,<3.13"
+# 0.1.7 is the version Sugi ran successfully on 2026-11-21.
+# setuptools: resemble-perth 1.0.1 imports pkg_resources and declares no
+# dependencies. A uv venv has no setuptools, so the watermarker became None and
+# Turbo died on "'NoneType' object is not callable" (A4, 2026-11-23).
+# pkg_resources is deprecated in setuptools 80 and slated for removal, hence the bound.
+dependencies = ["chatterbox-tts==0.1.7", "setuptools<81"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+emotion-render = "emotion_render.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["emotion_render*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

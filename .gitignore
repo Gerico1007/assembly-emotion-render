@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.egg-info/
+out/
+
+# Reference clips and renders never enter git: they are people's voices (I2).
+*.wav
+*.mp3
+
+# Voice entries belong in your own store, ~/.local/share/assembly-emotion-render/voices/.
+# Only the template is shipped.
+voices/*.json
+!voices/example.json

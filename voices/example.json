@@ -1,0 +1,8 @@
+{
+  "about": "Template. Copy to ~/.local/share/assembly-emotion-render/voices/<your-id>.json and fill in every field (README, 'Add your own voice'). With consent null this entry is refused (I2).",
+  "person": "Your Name",
+  "lang": "en",
+  "engine": "turbo",
+  "reference": "<your-id>.wav",
+  "consent": null
+}
