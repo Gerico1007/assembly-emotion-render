@@ -23,14 +23,14 @@ def _normalize(tag: str) -> str:
 
 def parse(raw: str) -> Script:
     if not raw or not raw.strip():
-        raise Refused("the script is empty")
+        raise Refused("the script is empty", "empty_script")
 
     tags: list[str] = []
 
     def keep(match: re.Match) -> str:
         tag = _normalize(match.group(1))
         if not tag:
-            raise Refused("empty tag [] in the script")
+            raise Refused("empty tag [] in the script", "empty_tag")
         tags.append(tag)
         return f"[{tag}]"
 
@@ -40,7 +40,8 @@ def parse(raw: str) -> Script:
     if "[" in leftover or "]" in leftover:
         raise Refused(
             "a bracket in the script is not part of a whole tag. The engine would "
-            "read it aloud, which is what this package exists to prevent (I1)"
+            "read it aloud, which is what this package exists to prevent (I1)",
+            "stray_bracket",
         )
 
     return Script(
@@ -61,5 +62,8 @@ def validate(script: Script, allowed: frozenset[str], engine: str) -> None:
         accepted = "none, this engine takes no tags"
     raise Refused(
         f"{engine} does not act out {' '.join(f'[{t}]' for t in unknown)}. "
-        f"Tags it acts out: {accepted}. A tag is consumed or refused, never spoken (I1)"
+        f"Tags it acts out: {accepted}. A tag is consumed or refused, never spoken (I1)",
+        "unknown_tag",
+        unknown=unknown,
+        accepted=sorted(allowed),
     )

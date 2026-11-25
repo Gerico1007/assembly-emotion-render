@@ -24,6 +24,7 @@ class EngineSpec:
     params: frozenset[str]        # generation settings the model takes
     min_ram_mb: dict[str, int]    # host RAM that must be free before loading, per device
     min_vram_mb: int | None       # GPU memory it needs. None: it has fit on no GPU measured
+    cuda_max_chars: int | None = None  # longest script that fits on the GPU. None: not measured (R9, B5)
 
 
 # Turbo's paralinguistic tags. The Chatterbox README names [cough] [laugh]
@@ -69,32 +70,62 @@ ENGINES: dict[str, EngineSpec] = {
 }
 
 
-def choose_device(requested: str, spec: EngineSpec, cuda_total_mb: int | None) -> str:
+def choose_device(
+    requested: str,
+    spec: EngineSpec,
+    cuda_total_mb: int | None,
+    gpu_holder: int | None = None,
+    text_chars: int | None = None,
+) -> str:
     """The device to render on. `cuda_total_mb` is None when torch sees no CUDA device.
 
-    "auto" takes the GPU only where the engine is known to fit. An explicit
-    "cuda" that is known not to fit is refused before a model load is spent on it.
+    "auto" takes the GPU only where the engine is known to fit, the script is short
+    enough for it, and no other process holds the GPU (`gpu_holder`, a pid, see
+    gpulock.py). An explicit "cuda" that cannot be served is refused before a
+    model load is spent on it.
     """
     fits = (
         cuda_total_mb is not None
         and spec.min_vram_mb is not None
         and cuda_total_mb >= spec.min_vram_mb
     )
+    short_enough = (
+        spec.cuda_max_chars is None or text_chars is None or text_chars <= spec.cuda_max_chars
+    )
     if requested == "auto":
-        return "cuda" if fits else "cpu"
-    if requested == "cuda" and not fits:
+        return "cuda" if fits and short_enough and gpu_holder is None else "cpu"
+    if requested != "cuda":
+        return requested
+    if not fits:
         if cuda_total_mb is None:
-            raise Refused("--device cuda was asked, but torch sees no CUDA device")
+            raise Refused("--device cuda was asked, but torch sees no CUDA device", "no_gpu")
         if spec.min_vram_mb is None:
             raise Refused(
                 f"{spec.name} has not fit on any GPU measured so far (it ran out of "
-                f"memory on a 3.63 GiB GTX 1650). This card has {cuda_total_mb} MB. Use --device cpu"
+                f"memory on a 3.63 GiB GTX 1650). This card has {cuda_total_mb} MB. Use --device cpu",
+                "gpu_too_small",
             )
         raise Refused(
             f"{spec.name} needs {spec.min_vram_mb} MB of GPU memory, this card has "
-            f"{cuda_total_mb} MB. Use --device cpu"
+            f"{cuda_total_mb} MB. Use --device cpu",
+            "gpu_too_small",
         )
-    return requested
+    if not short_enough:
+        raise Refused(
+            f"{text_chars} characters is longer than {spec.name} fits on this GPU "
+            f"({spec.cuda_max_chars}). Use --device cpu or a shorter script",
+            "text_too_long_for_gpu",
+            limit=spec.cuda_max_chars,
+        )
+    if gpu_holder is not None:
+        holder = f"process {gpu_holder}" if gpu_holder > 0 else "another process"
+        raise Refused(
+            f"the GPU is held by {holder} (its lock is ~/.cache/assembly-emotion-render/gpu.lock). "
+            f"Use --device cpu, or wait for it to finish",
+            "gpu_busy",
+            holder_pid=gpu_holder if gpu_holder > 0 else None,
+        )
+    return "cuda"
 
 
 def adapter(name: str):
