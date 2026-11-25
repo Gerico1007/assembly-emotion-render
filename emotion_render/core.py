@@ -128,8 +128,13 @@ def render(p: Plan, model, *, device: str, out: Path, backend, load_seconds: flo
 
     The record's keys and order are the CLI's since phase 2; the sidecar JSON and
     the line printed by `emotion-render` are this dict.
+
+    Peaks: right after its load (`load_seconds` > 0), a render reports the peaks of
+    load and render together, as the CLI always has. On a model loaded by an earlier
+    call, the server's warm model, the peaks start at this render (R17).
     """
-    backend.reset_peaks(device)
+    if load_seconds == 0:
+        backend.reset_peaks(device)
     t1 = time.perf_counter()
     audio, sr = backend.generate(
         model, p.spec.name, p.script.engine_text, str(p.voice.reference), p.voice.lang, p.params

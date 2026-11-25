@@ -31,6 +31,7 @@ class FakeBackend:
         self.gate: threading.Event | None = None   # set: generate waits on it
         self.started = threading.Event()            # set when a generate begins
         self.oom = False
+        self.resets: list[str] = []
 
     def cuda_total_mb(self):
         return self.cuda_mb
@@ -61,7 +62,7 @@ class FakeBackend:
         return len(audio) / 2 / sr
 
     def reset_peaks(self, device):
-        pass
+        self.resets.append(device)
 
     def peaks(self, device):
         cuda = device == "cuda"

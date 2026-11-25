@@ -12,6 +12,18 @@ from importlib.metadata import PackageNotFoundError, version
 from .engines import adapter, available_mb
 
 
+def peak_rss_mb() -> int:
+    """Peak RSS since the last reset_peaks (VmHWM), or since the process began where /proc has none."""
+    try:
+        with open("/proc/self/status", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("VmHWM:"):
+                    return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
+
+
 class TorchBackend:
     def cuda_total_mb(self) -> int | None:
         import torch
@@ -42,10 +54,19 @@ class TorchBackend:
         return audio.shape[-1] / sample_rate
 
     def reset_peaks(self, device: str) -> None:
+        """Start a new measurement: the GPU's peak and this process's peak RSS (VmHWM)."""
         if device == "cuda":
             import torch
 
             torch.cuda.reset_peak_memory_stats()
+        try:
+            # Linux resets VmHWM to the current RSS when "5" is written here. ru_maxrss
+            # cannot be reset, which made every render in a long-lived server report
+            # the server's lifetime peak (R17).
+            with open("/proc/self/clear_refs", "w") as f:
+                f.write("5")
+        except OSError:
+            pass
 
     def peaks(self, device: str) -> dict:
         gpu = vram = None
@@ -54,11 +75,7 @@ class TorchBackend:
 
             gpu = torch.cuda.get_device_name(0)
             vram = round(torch.cuda.max_memory_reserved() / 2**20)
-        return {
-            "gpu": gpu,
-            "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024),
-            "peak_vram_reserved_mb": vram,
-        }
+        return {"gpu": gpu, "peak_rss_mb": peak_rss_mb(), "peak_vram_reserved_mb": vram}
 
     def is_out_of_memory(self, exc: BaseException) -> bool:
         import torch
