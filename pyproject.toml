@@ -18,10 +18,15 @@ requires-python = ">=3.10,<3.13"
 dependencies = ["chatterbox-tts==0.1.7", "setuptools<81"]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+# The MCP server (emotion-render-mcp). 2.3.0 is the SDK the server was written
+# against (B0, 2026-11-25); mcp 2 renamed FastMCP and moved most of the API.
+mcp = ["mcp==2.3.0"]
+# The server tests drive it through the SDK's own clients, so they need it too.
+test = ["pytest>=8", "mcp==2.3.0"]
 
 [project.scripts]
 emotion-render = "emotion_render.cli:main"
+emotion-render-mcp = "emotion_render.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["emotion_render*"]
