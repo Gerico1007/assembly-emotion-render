@@ -3,14 +3,15 @@
 Model code is imported only when a render starts, so validation and --check
 never load torch.
 
-The RAM and VRAM figures come from A4 on eury, 2026-11-23 (GTX 1650, 3.63 GiB
-usable, torch 2.6.0+cu124, chatterbox-tts 0.1.7). The sidecar JSON of each run is
-in out/ and the summary is in the phase-2 brief.
+The RAM and VRAM figures come from two measurement runs on one machine (GTX 1650,
+3.63 GiB usable, torch 2.6.0+cu124, chatterbox-tts 0.1.7): A4 on 2026-11-23, each
+engine alone in a fresh process, and B5 on 2026-11-25, through the MCP server with
+Turbo warm on the GPU.
 """
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .. import Refused
 
@@ -24,7 +25,10 @@ class EngineSpec:
     params: frozenset[str]        # generation settings the model takes
     min_ram_mb: dict[str, int]    # host RAM that must be free before loading, per device
     min_vram_mb: int | None       # GPU memory it needs. None: it has fit on no GPU measured
-    cuda_max_chars: int | None = None  # longest script that fits on the GPU. None: not measured (R9, B5)
+    cuda_max_chars: int | None = None  # longest script measured to fit on the GPU. None: no limit known
+    # Host RAM that must be free to load this engine into a process that already
+    # holds another model (the MCP server). Absent: the fresh-process figure applies.
+    min_ram_mb_beside: dict[str, int] = field(default_factory=dict)
 
 
 # Turbo's paralinguistic tags. The Chatterbox README names [cough] [laugh]
@@ -43,7 +47,10 @@ MULTILINGUAL_LANGUAGES = frozenset({
 })
 
 ENGINES: dict[str, EngineSpec] = {
-    # A4 peak RSS: 6427 MB on CPU, 4854 MB on CUDA. Peak VRAM reserved: 3350 MB.
+    # A4 peak RSS: 6427 MB on CPU, 4854 MB on CUDA. B5 peak RSS on CUDA: 4822 MB.
+    # B5 peak VRAM reserved: 3512 MB at 142 characters, 3526 MB at 300, and out of
+    # GPU memory at 400 (card: 3717 MB). So 3600 MB is what a card needs, and 300
+    # characters is the longest script measured to fit; 301 to 399 is untested.
     # Turbo's generate() takes exaggeration and cfg_weight but ignores them with
     # a warning, so params is empty and the CLI refuses them (I1).
     "turbo": EngineSpec(
@@ -53,10 +60,13 @@ ENGINES: dict[str, EngineSpec] = {
         tags=TURBO_TAGS,
         params=frozenset(),
         min_ram_mb={"cpu": 7000, "cuda": 5500},
-        min_vram_mb=3500,
+        min_vram_mb=3600,
+        cuda_max_chars=300,
     ),
-    # A4 peak RSS: 6938 MB on CPU. On CUDA it loaded, then ran out of GPU memory
-    # during generation, both runs (3.63 GiB card, 26 MiB left free).
+    # A4 peak RSS: 6938 MB on CPU, alone. On CUDA it loaded, then ran out of GPU
+    # memory during generation, both runs (3.63 GiB card, 26 MiB left free).
+    # B5, loaded beside Turbo in the server: RSS 2365 MB before, 8325 MB at peak,
+    # so 5960 MB more at peak (4224 MB more once rendered). The guard keeps a margin.
     # Emotion is one exaggeration level per call. It takes no tags.
     "multilingual": EngineSpec(
         name="multilingual",
@@ -66,6 +76,7 @@ ENGINES: dict[str, EngineSpec] = {
         params=frozenset({"exaggeration", "cfg_weight"}),
         min_ram_mb={"cpu": 7500},
         min_vram_mb=None,
+        min_ram_mb_beside={"cpu": 6500},
     ),
 }
 

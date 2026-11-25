@@ -454,3 +454,26 @@ async def test_the_audit_log_names_who_and_never_the_script(world):
     assert {"client": "bea", "device": "vm", "tool": "render", "voice": "ada-en", "outcome": "done"}.items() \
         <= next(x for x in lines if x["tool"] == "render" and x["client"] == "bea").items()
     assert any(x["client"] == "cyd" and x["outcome"] == "unknown_voice" for x in lines)
+
+
+async def test_multilingual_beside_warm_turbo_uses_the_lower_guard(tmp_path):
+    # 7000 MB free: refused for a fresh process (7500), enough beside Turbo (6500).
+    world = World(tmp_path, FakeBackend(available_mb=7000))
+    async with world.serve(BEA) as (bea,):
+        ok, done = await call(bea, "render", voice="ada-fr", text="Bonjour.")
+        world.backend.available = 6000
+        world.clock.advance(601)
+        world.service.tidy()                       # Multilingual unloaded, Turbo stays
+        low = await refused(bea, "render", voice="ada-fr", text="Bonjour.")
+    assert ok and done["record"]["device"] == "cpu"
+    assert low["code"] == "low_memory" and low["needed_mb"] == 6500
+    assert "beside the model already loaded" in low["message"]
+
+
+async def test_a_script_over_300_characters_goes_to_cpu(world):
+    text = ("word " * 70).strip() + "."
+    async with world.serve(BEA) as (bea,):
+        ok, done = await call(bea, "render", voice="ada-en", text=text)
+        gpu = await refused(bea, "check", voice="ada-en", text=text, device="cuda")
+    assert ok and len(done["record"]["clean_text"]) > 300 and done["record"]["device"] == "cpu"
+    assert gpu["code"] == "text_too_long_for_gpu" and gpu["limit"] == 300

@@ -671,7 +671,7 @@ class Service:
         if loaded is not None:
             loaded.last_used = self.clock()
             return loaded.model, 0.0
-        core.guard_memory(spec, device, self.backend)
+        core.guard_memory(spec, device, self.backend, beside=bool(self._models))
         model, seconds = core.load_model(spec, device, self.backend)
         self._models[key] = _Loaded(model, self.clock())
         return model, seconds

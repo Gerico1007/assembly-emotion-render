@@ -100,12 +100,14 @@ def claim_device(requested: str, p: Plan, backend, lock) -> str:
     return device
 
 
-def guard_memory(spec: EngineSpec, device: str, backend) -> None:
-    need = spec.min_ram_mb[device]
+def guard_memory(spec: EngineSpec, device: str, backend, beside: bool = False) -> None:
+    """Refuse a load this host cannot afford. `beside`: the process already holds a model."""
+    need = spec.min_ram_mb_beside.get(device, spec.min_ram_mb[device]) if beside else spec.min_ram_mb[device]
     free = backend.available_mb()
     if free is not None and free < need:
+        where = " beside the model already loaded" if beside else ""
         raise Refused(
-            f"{free} MB of RAM available, {spec.name} on {device} needs {need} MB. "
+            f"{free} MB of RAM available, {spec.name} on {device} needs {need} MB{where}. "
             f"Loading now could push this host into swap. Retry when it is quieter",
             "low_memory",
             available_mb=free,
