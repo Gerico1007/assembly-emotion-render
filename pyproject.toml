@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "assembly-emotion-render"
-version = "0.1.0"
+version = "0.2.0"
 description = "Acted speech for the G.Music Assembly: a tagged script in, a voiced wav out."
 readme = "README.md"
 # Chatterbox is tested on 3.11. The upper bound keeps it out of /opt/anaconda3 (3.13),

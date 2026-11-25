@@ -6,7 +6,7 @@ I1  A tag is consumed or refused. It is never spoken and never dropped silently.
 I2  No cloned voice without the consent of the person whose voice it is.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class Refused(ValueError):
